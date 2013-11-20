@@ -19,11 +19,11 @@ class Contacts
       end
 
       postdata =  "PPSX=%s&PwdPad=%s&login=%s&passwd=%s&LoginOptions=2&PPFT=%s" % [
-        CGI.escape(data.split("><").grep(/PPSX/).first[/=\S+$/][2..-3]),
+        "Passpor",    # don't ask me - seems to work
         PWDPAD[0...(PWDPAD.length-@password.length)],
         CGI.escape(login),
         CGI.escape(password),
-        CGI.escape(data.split("><").grep(/PPFT/).first[/=\S+$/][2..-3])
+        CGI.escape(data.match(/input type="hidden" name="PPFT" id=\S+ value="([^\"]+)"/)[1])
       ]
 
       form_url = data.split("><").grep(/form/).first.split[5][8..-2]
@@ -67,14 +67,28 @@ class Contacts
           data, resp, cookies, forward, old_url = get(forward, @cookies) + [forward]
         end
 
-        data.encode!('UTF-16', invalid: :replace, replace: '')
-        data.encode!('UTF-8', 'UTF-16')
-        @contacts = CSV.parse(data, {:headers => true, :col_sep => data[7]}).map do |row|
+        data.force_encoding('CP1252') # https://github.com/liangzan/contacts/issues/29
+        data.encode!('UTF-8')
+
+        separator = data[7]
+        unless data.valid_encoding?
+          data = data.slice(2..-1).split("\u0000").join('')
+          separator = ';'
+        end
+        @contacts = CSV.parse(data, {:headers => true, :col_sep => separator}).map do |row|
           name = ""
           name = row["First Name"] if !row["First Name"].nil?
           name << " #{row["Last Name"]}" if !row["Last Name"].nil?
           [name, row["E-mail Address"] || ""]
         end
+        # data.force_encoding('CP1252') # https://github.com/liangzan/contacts/issues/29
+        # data.encode!('UTF-8')
+        # @contacts = CSV.parse(data, {:headers => true, :col_sep => data[7]}).map do |row|
+        #   name = ""
+        #   name = row["First Name"] if !row["First Name"].nil?
+        #   name << " #{row["Last Name"]}" if !row["Last Name"].nil?
+        #   [name, row["E-mail Address"] || ""]
+        # end
       else
         @contacts || []
       end
